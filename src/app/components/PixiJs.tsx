@@ -160,7 +160,11 @@ export const PixiJs = () => {
         <div className="flex flex-col gap-1.5">
           <span className="text-center text-xl">pixi.js Canvas</span>
           <div>
-            <div ref={ref} className="border rounded-lg border-gray" />
+            <div
+              ref={ref}
+              style={{ height: 300, width: 300 }}
+              className="border rounded-lg border-gray"
+            />
           </div>
         </div>
 
