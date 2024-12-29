@@ -2,7 +2,6 @@ import type { NextConfig } from "next"
 import CopyWebpackPlugin from "copy-webpack-plugin"
 
 const nextConfig: NextConfig = {
-  webpack5: true,
   webpack: (config) => {
     config.resolve.fallback = { fs: false }
 

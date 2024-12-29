@@ -1,47 +1,19 @@
-import {
-  Container,
-  DisplayObject,
-  Graphics,
-  SHAPES,
-  Sprite,
-} from "pixi.js-legacy"
+import { Container, Graphics, SHAPES, Sprite } from "pixi.js-legacy"
 import { downloadData } from "./utils"
-
-export type CanvasKitShape = {
-  x: number
-  y: number
-  radius?: number
-  width?: number
-  height?: number
-  path?: Array<number>
-  transform?: Array<number>
-}
-
-export type CanvasKitPaint = {
-  color: number
-  width: number
-  style: "fill" | "stroke"
-}
-
-export enum CanvasKitDisplayObjectTag {
-  PATH,
-  RECT,
-  OVAL,
-  CIRCLE,
-  IMAGE,
-}
-
-export type CanvasKitDisplayObject = {
-  tag: CanvasKitDisplayObjectTag
-  shape: CanvasKitShape
-  paint?: CanvasKitPaint
-  imageBytes?: ArrayBuffer
-}
+import {
+  CanvasKitDisplayObject,
+  CanvasKitDisplayObjectEvents,
+  CanvasKitDisplayObjectTag,
+  CanvasKitEvent,
+  CanvasKitPaint,
+} from "./typings"
+import { CanvasKitIntersection } from "./CanvasKitIntersection"
 
 export class PixiConverter {
   private CanvasKit: any
   private width: number
   private height: number
+  private canvasId: string
 
   private objects: Array<CanvasKitDisplayObject> = []
 
@@ -51,9 +23,12 @@ export class PixiConverter {
    * @param width - The width of the canvas.
    * @param height - The height of the canvas.
    */
-  constructor(width: number, height: number) {
+  constructor(width: number, height: number, canvasId: string) {
     this.width = width
     this.height = height
+    this.canvasId = canvasId
+
+    this.initCanvasEvents()
   }
 
   /**
@@ -66,12 +41,24 @@ export class PixiConverter {
       .then((CanvasKit) => (this.CanvasKit = CanvasKit))
   }
 
+  initCanvasEvents() {
+    const canvas = document.getElementById(this.canvasId)
+
+    // Iterating through CanvasKitEvent enum to event handling function
+    Object.values(CanvasKitEvent).forEach((eventName) => {
+      canvas?.addEventListener(eventName, (event) =>
+        this.eventHandler(event, eventName)
+      )
+    })
+  }
+
   /**
    * Converts a PixiJS container to Skia for rendering.
    *
    * @param container - The PixiJS container to convert.
    */
   async convertPixiContainerToSkia(container: Container) {
+    this.objects = []
     await this.parseObjectsTree(container)
     this.drawOnce()
   }
@@ -96,6 +83,11 @@ export class PixiConverter {
         const height = "height" in child ? (child.height as number) : undefined
         const transform = Array.from(child.worldTransform.toArray(false))
 
+        const events =
+          "_events" in child
+            ? (child._events as CanvasKitDisplayObjectEvents)
+            : undefined
+
         if (child.isSprite) {
           const sprite = child as Sprite
           const imageUrl = sprite.texture.textureCacheIds.at(0)
@@ -115,6 +107,7 @@ export class PixiConverter {
                 height: height,
                 transform: transform,
               },
+              events: { ...events },
               imageBytes: buffer,
             }
 
@@ -147,6 +140,7 @@ export class PixiConverter {
                   style: pointsLength > 4 ? "fill" : "stroke",
                   width: graphicsData.lineStyle.width,
                 },
+                events: { ...events },
               }
 
               this.objects.push(path)
@@ -168,6 +162,7 @@ export class PixiConverter {
                   style: "fill",
                   width: 0,
                 },
+                events: { ...events },
               }
 
               this.objects.push(rect)
@@ -188,6 +183,7 @@ export class PixiConverter {
                   style: "fill",
                   width: 0,
                 },
+                events: { ...events },
               }
 
               this.objects.push(circle)
@@ -209,6 +205,7 @@ export class PixiConverter {
                   style: "fill",
                   width: 0,
                 },
+                events: { ...events },
               }
 
               this.objects.push(oval)
@@ -231,6 +228,7 @@ export class PixiConverter {
                   style: "fill",
                   width: 0,
                 },
+                events: { ...events },
               }
 
               this.objects.push(rrect)
@@ -278,11 +276,25 @@ export class PixiConverter {
    * Draws the objects once on the Skia canvas.
    */
   private drawOnce() {
-    const surface = this.CanvasKit.MakeSWCanvasSurface("skia-canvas")
+    const surface = this.CanvasKit.MakeSWCanvasSurface(this.canvasId)
 
     surface.drawOnce((canvas: any) => {
       this.render(canvas, this.objects)
     })
+  }
+
+  private eventHandler(event: PointerEvent, eventName: string) {
+    const point = { x: event.offsetX, y: event.offsetY }
+
+    const triggeredObject = this.objects.findLast(
+      (object) =>
+        Object.keys(object.events).includes(eventName) &&
+        CanvasKitIntersection.isPointInObject(point, object)
+    )
+
+    triggeredObject?.events[
+      eventName as keyof CanvasKitDisplayObjectEvents
+    ]?.fn()
   }
 
   /**

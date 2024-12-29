@@ -1,3 +1,5 @@
+import { CanvasKitDisplayObjectEvents } from "./typings"
+
 import {
   Circle,
   Ellipse,
@@ -26,11 +28,12 @@ export const getRandomInt = (min: number, max: number) => {
 }
 
 export const generateRandomPixiGraphics = (
+  id: number,
   canvasWidth: number,
-  canvasHeight: number
+  canvasHeight: number,
+  events: CanvasKitDisplayObjectEvents
 ) => {
   const graphics = new Graphics()
-  const id = getRandomInt(0, 5)
 
   const max = Math.min(canvasWidth, canvasHeight)
 
@@ -45,28 +48,36 @@ export const generateRandomPixiGraphics = (
   const shape = (() => {
     switch (id) {
       case SHAPES.RECT: {
-        return new Rectangle(x, y, width, height)
+        return { name: "rect", shape: new Rectangle(x, y, width, height) }
       }
       case SHAPES.CIRC: {
-        return new Circle(x, y, radius)
+        return { name: "circle", shape: new Circle(x, y, radius) }
       }
       case SHAPES.ELIP: {
-        return new Ellipse(x, y, width / 2, height / 2)
+        return { name: "oval", shape: new Ellipse(x, y, width / 2, height / 2) }
       }
       case SHAPES.RREC: {
-        return new RoundedRectangle(x, y, width, height, radius)
+        return {
+          name: "rounded rect",
+          shape: new RoundedRectangle(x, y, width, height, radius),
+        }
       }
       default: {
         const pointsLength = getRandomInt(3, 5) * 2
         const points = new Array(pointsLength)
           .fill(0)
           .map((_) => getRandomInt(0, max))
-        return new Polygon(points)
+        return { name: "poligon", shape: new Polygon(points) }
       }
     }
   })()
 
-  graphics.beginFill(color).drawShape(shape).endFill()
+  graphics
+    .beginFill(color)
+    .drawShape(shape.shape)
+    .endFill()
+    .on("pointerup", () => events.pointerup?.fn())
+    .on("pointerdown", () => events.pointerdown?.fn())
 
   return graphics
 }
